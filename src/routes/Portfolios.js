@@ -39,17 +39,16 @@ const categoryColors = {
 function MainPortfolioPage() {
   const navigate = useNavigate();
   const [portfolios, setPortfolios] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedCategory, setSelectedCategory] = useState("전체");
   const [selectedPortfolio, setSelectedPortfolio] = useState(null);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredPortfolios, setFilteredPortfolios] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     let unsubscribe;
+    setIsLoading(true); // 로딩 상태 시작
 
     const setupRealtimeUpdates = () => {
       let q;
@@ -63,25 +62,64 @@ function MainPortfolioPage() {
         );
       }
 
-      unsubscribe = onSnapshot(q, (snapshot) => {
-        const portfolioList = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate().toISOString() || new Date().toISOString(),
-          updatedAt: doc.data().updatedAt?.toDate().toISOString() || new Date().toISOString()
-        }));
+      unsubscribe = onSnapshot(q, async (snapshot) => {
+        try {
+          const portfolioList = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            createdAt: doc.data().createdAt?.toDate().toISOString() || new Date().toISOString(),
+            updatedAt: doc.data().updatedAt?.toDate().toISOString() || new Date().toISOString()
+          }));
 
-        if (selectedCategory !== "전체") {
-          portfolioList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+          if (selectedCategory !== "전체") {
+            portfolioList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+          }
+
+          // 이미지 프리로딩 함수
+          const preloadImage = (url) => {
+            return new Promise((resolve, reject) => {
+              if (!url) {
+                resolve(); // URL이 없는 경우 바로 resolve
+                return;
+              }
+              const img = new Image();
+              img.src = url;
+              img.onload = resolve;
+              img.onerror = resolve; // 에러가 나도 계속 진행
+            });
+          };
+
+          // 모든 포트폴리오의 이미지와 썸네일 프리로딩
+          const imagePromises = portfolioList.map(portfolio => {
+            const promises = [];
+            if (portfolio.images?.[0]) {
+              promises.push(preloadImage(portfolio.images[0]));
+            }
+            if (portfolio.thumbnailUrl) {
+              promises.push(preloadImage(portfolio.thumbnailUrl));
+            }
+            return Promise.all(promises);
+          });
+
+          // 데이터 설정 및 이미지 로딩 완료 대기
+          await Promise.all(imagePromises);
+          setPortfolios(portfolioList);
+          setError('');
+
+          // 최소 1초 로딩 시간 보장
+          setTimeout(() => {
+            setIsLoading(false);
+          }, 1000);
+
+        } catch (error) {
+          console.error('Error processing portfolios:', error);
+          setError('포트폴리오를 불러오는 중 오류가 발생했습니다.');
+          setIsLoading(false);
         }
-
-        setPortfolios(portfolioList);
-        setError('');
-        setLoading(false);
       }, (error) => {
         console.error('Error fetching portfolios:', error);
         setError('포트폴리오를 불러오는 중 오류가 발생했습니다.');
-        setLoading(false);
+        setIsLoading(false);
       });
     };
 
@@ -110,8 +148,8 @@ function MainPortfolioPage() {
     filterPortfolios();
   }, [searchTerm, portfolios]);
 
-  const popularPortfolios = [...portfolios].sort((a, b) => b.views - a.views).slice(0, 3);
-  const recentPortfolios = [...portfolios];
+  // const popularPortfolios = [...portfolios].sort((a, b) => b.views - a.views).slice(0, 3);
+  // const recentPortfolios = [...portfolios];
 
   const handlePortfolioClick = (portfolioId) => {
     navigate(`/portfolio/${portfolioId}`);
@@ -135,45 +173,6 @@ function MainPortfolioPage() {
     }
     window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
   };
-
-  useEffect(() => {
-    const fetchPortfolios = async () => {
-      try {
-        // ... existing fetch logic ...
-
-        // 이미지 프리로딩 함수
-        const preloadImage = (url) => {
-          return new Promise((resolve, reject) => {
-            const img = new Image();
-            img.src = url;
-            img.onload = resolve;
-            img.onerror = reject;
-          });
-        };
-
-        // 모든 포트폴리오 이미지 프리로딩
-        const imageLoadPromises = portfolios
-          .map(portfolio => portfolio.images?.[0])
-          .filter(Boolean)
-          .map(preloadImage);
-
-        // 데이터 설정 및 이미지 로딩 완료 대기
-        setPortfolios(portfolios);
-        await Promise.all(imageLoadPromises);
-
-        // 최소 1초 로딩 시간 보장
-        setTimeout(() => {
-          setIsLoading(false);
-        }, 1000);
-
-      } catch (error) {
-        console.error("Error fetching portfolios:", error);
-        setIsLoading(false);
-      }
-    };
-
-    fetchPortfolios();
-  }, [selectedCategory]);
 
   if (isLoading) {
     return (

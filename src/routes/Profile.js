@@ -50,8 +50,8 @@ const Profile = () => {
     "기타": "other"
   };
   const [editingPortfolio, setEditingPortfolio] = useState(null);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [portfolioToDelete, setPortfolioToDelete] = useState(null);
+  // const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  // const [portfolioToDelete, setPortfolioToDelete] = useState(null);
 
   useEffect(() => {
     const fetchUserData = async () => {

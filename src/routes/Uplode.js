@@ -189,7 +189,7 @@ function Upload() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              파일 업로드
+              이미지 업로드
             </label>
             <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
               <div className="space-y-1 text-center">
@@ -212,7 +212,7 @@ function Upload() {
                     htmlFor="file-upload"
                     className="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500"
                   >
-                    <span>파일 선택</span>
+                    <span>이미지 선택</span>
                     <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} multiple />
                   </label>
                   <p className="pl-1">또는 드래그 앤 드롭</p>
