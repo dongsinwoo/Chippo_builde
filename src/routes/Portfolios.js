@@ -4,6 +4,7 @@ import PortfolioDetailPage from '../component/PortfolioDetail';
 import { db } from '../firebase';
 import { collection, query, orderBy,  where, onSnapshot } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
+import Splash from '../component/Splash';
 
 
 const categories = [
@@ -45,6 +46,7 @@ function MainPortfolioPage() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredPortfolios, setFilteredPortfolios] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     let unsubscribe;
@@ -134,11 +136,48 @@ function MainPortfolioPage() {
     window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
   };
 
-  if (loading) {
+  useEffect(() => {
+    const fetchPortfolios = async () => {
+      try {
+        // ... existing fetch logic ...
+
+        // 이미지 프리로딩 함수
+        const preloadImage = (url) => {
+          return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.src = url;
+            img.onload = resolve;
+            img.onerror = reject;
+          });
+        };
+
+        // 모든 포트폴리오 이미지 프리로딩
+        const imageLoadPromises = portfolios
+          .map(portfolio => portfolio.images?.[0])
+          .filter(Boolean)
+          .map(preloadImage);
+
+        // 데이터 설정 및 이미지 로딩 완료 대기
+        setPortfolios(portfolios);
+        await Promise.all(imageLoadPromises);
+
+        // 최소 1초 로딩 시간 보장
+        setTimeout(() => {
+          setIsLoading(false);
+        }, 1000);
+
+      } catch (error) {
+        console.error("Error fetching portfolios:", error);
+        setIsLoading(false);
+      }
+    };
+
+    fetchPortfolios();
+  }, [selectedCategory]);
+
+  if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-xl text-gray-600">로딩 중...</div>
-      </div>
+      <Splash />
     );
   }
 

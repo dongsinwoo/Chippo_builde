@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../firebase';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import Splash from '../component/Splash';
 
 function Home() {
   const navigate = useNavigate();
@@ -11,6 +12,7 @@ function Home() {
   const [searchTerm, setSearchTerm] = useState('');
   const [randomPortfolios, setRandomPortfolios] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
 
   const categoryMapping = {
     "디자인": "design",
@@ -70,11 +72,36 @@ function Home() {
           .filter(portfolio => portfolio.images && portfolio.images.length > 0);
 
         const shuffled = portfolios.sort(() => 0.5 - Math.random());
-        setRandomPortfolios(shuffled.slice(0, 6));
-        setLoading(false);
+        const selectedPortfolios = shuffled.slice(0, 9);
+
+        // 이미지 프리로딩 함수
+        const preloadImage = (url) => {
+          return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.src = url;
+            img.onload = resolve;
+            img.onerror = reject;
+          });
+        };
+
+        // 모든 포트폴리오 이미지 프리로딩
+        const imageLoadPromises = selectedPortfolios
+          .map(portfolio => portfolio.images[0])
+          .filter(Boolean)
+          .map(preloadImage);
+
+        // 데이터 설정 및 이미지 로딩 완료 대기
+        setRandomPortfolios(selectedPortfolios);
+        await Promise.all(imageLoadPromises);
+
+        // 최소 1초 로딩 시간 보장
+        setTimeout(() => {
+          setIsLoading(false);
+        }, 1000);
+
       } catch (error) {
-        console.error('Error fetching portfolios:', error);
-        setLoading(false);
+        console.error("Error fetching portfolios:", error);
+        setIsLoading(false);
       }
     };
 
@@ -88,6 +115,12 @@ function Home() {
       navigate(`/portfolio?selected=${portfolioId}`);
     }
   };
+
+  if (isLoading) {
+    return (
+      <Splash />
+    );
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-b from-gray-50 to-white text-gray-900">
@@ -130,7 +163,7 @@ function Home() {
             <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl text-center mb-12 bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-blue-500">주요 서비스</h2>
             <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
               {[
-                { icon: Users, title: "네트워킹", description: "다른 학생들과 ��결하고 협업 기회를 찾아보세요." },
+                { icon: Users, title: "네트워킹", description: "다른 학생들과 결하고 협업 기회를 찾아보세요." },
                 { icon: BookOpen, title: "학습", description: "다양한 포트폴리오를 통해 새로운 아이디어와 기술을 배우세요." },
                 { icon: Briefcase, title: "취업 기회", description: "기업들과 연결되어 인턴십이나 취업 기회를 잡으세요." },
                 { icon: Lightbulb, title: "아이디어 공유", description: "창의적인 아이디어를 공유하고 피드백을 받아보세요." },
@@ -156,52 +189,46 @@ function Home() {
             <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl text-center mb-12 bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-blue-500">
               다양한 포트폴리오를 만나보세요.
             </h2>
-            {loading ? (
-              <div className="text-center py-10">
-                <p>로딩 중...</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                {randomPortfolios.map((portfolio) => (
-                  <div
-                    key={portfolio.id}
-                    onClick={() => handlePortfolioClick(portfolio.id)}
-                    className="bg-white overflow-hidden shadow-sm rounded-lg cursor-pointer hover:shadow-lg transition-shadow duration-200"
-                  >
-                    <img 
-                      className="h-48 w-full object-cover" 
-                      src={portfolio.images?.[0] || 'https://via.placeholder.com/300x200'} 
-                      alt={portfolio.title} 
-                    />
-                    <div className="p-4">
-                      <h3 className="text-lg font-medium text-gray-900">{portfolio.title}</h3>
-                      <p className="mt-1 text-sm text-gray-500">{portfolio.authorName}</p>
-                      <div className="mt-4 flex justify-between items-center">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          categoryColors[Object.entries(categoryMapping).find(([k, v]) => v === portfolio.category)?.[0] || 'bg-gray-100 text-gray-800']
-                        }`}>
-                          {Object.entries(categoryMapping).find(([k, v]) => v === portfolio.category)?.[0] || portfolio.category}
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {randomPortfolios.map((portfolio) => (
+                <div
+                  key={portfolio.id}
+                  onClick={() => handlePortfolioClick(portfolio.id)}
+                  className="bg-white overflow-hidden shadow-sm rounded-lg cursor-pointer hover:shadow-lg transition-shadow duration-200"
+                >
+                  <img 
+                    className="h-48 w-full object-cover" 
+                    src={portfolio.images?.[0] || 'https://via.placeholder.com/300x200'} 
+                    alt={portfolio.title} 
+                  />
+                  <div className="p-4">
+                    <h3 className="text-lg font-medium text-gray-900">{portfolio.title}</h3>
+                    <p className="mt-1 text-sm text-gray-500">{portfolio.authorName}</p>
+                    <div className="mt-4 flex justify-between items-center">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        categoryColors[Object.entries(categoryMapping).find(([k, v]) => v === portfolio.category)?.[0] || 'bg-gray-100 text-gray-800']
+                      }`}>
+                        {Object.entries(categoryMapping).find(([k, v]) => v === portfolio.category)?.[0] || portfolio.category}
+                      </span>
+                      <div className="flex items-center space-x-2 text-sm text-gray-500">
+                        <span className="flex items-center">
+                          <Eye className="h-4 w-4 mr-1" />
+                          {portfolio.views || 0}
                         </span>
-                        <div className="flex items-center space-x-2 text-sm text-gray-500">
-                          <span className="flex items-center">
-                            <Eye className="h-4 w-4 mr-1" />
-                            {portfolio.views || 0}
-                          </span>
-                          <span className="flex items-center">
-                            <ThumbsUp className="h-4 w-4 mr-1" />
-                            {portfolio.likes || 0}
-                          </span>
-                          <span className="flex items-center">
-                            <MessageCircle className="h-4 w-4 mr-1" />
-                            {portfolio.commentsCount || 0}
-                          </span>
-                        </div>
+                        <span className="flex items-center">
+                          <ThumbsUp className="h-4 w-4 mr-1" />
+                          {portfolio.likes || 0}
+                        </span>
+                        <span className="flex items-center">
+                          <MessageCircle className="h-4 w-4 mr-1" />
+                          {portfolio.commentsCount || 0}
+                        </span>
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
+                </div>
+              ))}
+            </div>
             <div className="mt-12 text-center">
               <button 
                 onClick={handlePortfolioAuthClick}

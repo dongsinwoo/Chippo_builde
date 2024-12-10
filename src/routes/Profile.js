@@ -14,6 +14,7 @@ import {
 } from 'firebase/firestore';
 import { ref, deleteObject } from 'firebase/storage';
 import CorrectionPopup from '../component/CorrectionPopup';
+import Splash from '../component/Splash';
 
 const categoryColors = {
   "전체": "bg-gray-100 text-gray-800",
@@ -35,6 +36,7 @@ const Profile = () => {
     totalComments: 0
   });
   const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
   const { user } = useAuth();
   const categoryMapping = {
@@ -70,7 +72,7 @@ const Profile = () => {
 
         setUserPortfolios(portfolios);
 
-        // ���계 계산
+        // 통계 계산
         const stats = portfolios.reduce((acc, portfolio) => ({
           totalViews: acc.totalViews + (portfolio.views || 0),
           totalLikes: acc.totalLikes + (portfolio.likes || 0),
@@ -82,8 +84,35 @@ const Profile = () => {
         });
 
         setUserStats(stats);
+
+        // 이미지 프리로딩 함수
+        const preloadImage = (url) => {
+          return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.src = url;
+            img.onload = resolve;
+            img.onerror = reject;
+          });
+        };
+
+        // 모든 포트폴리오 이미지 프리로딩
+        const imageLoadPromises = portfolios
+          .map(portfolio => portfolio.images?.[0])
+          .filter(Boolean)
+          .map(preloadImage);
+
+        // 데이터 설정 및 이미지 로딩 완료 대기
+        setUserPortfolios(portfolios);
+        await Promise.all(imageLoadPromises);
+
+        // 최소 1초 로딩 시간 보장
+        setTimeout(() => {
+          setIsLoading(false);
+        }, 1000);
+
       } catch (error) {
         console.error('Error fetching user data:', error);
+        setIsLoading(false);
       } finally {
         setLoading(false);
       }
@@ -113,7 +142,7 @@ const Profile = () => {
         for (const imageUrl of portfolio.images) {
           const imageRef = ref(storage, imageUrl);
           await deleteObject(imageRef).catch(error => {
-            console.error("이미�� 삭제 실패:", error);
+            console.error("이미지 삭제 실패:", error);
           });
         }
       }
@@ -244,11 +273,9 @@ const Profile = () => {
     </div>
   );
 
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-xl text-gray-600">로딩 중...</div>
-      </div>
+      <Splash />
     );
   }
 
