@@ -5,6 +5,9 @@ cat > README.md << 'EOL'
   <img src="./src/assets/취뽀취뽀.png" alt="취뽀의정석 로고" width="100%"/>
 </p>
 
+# 배포된 사이트
+https://chippo.site
+
 ## 📚 프로젝트 소개
 
 취뽀의정석은 대학생들이 자신의 포트폴리오를 공유하고, 다른 학생들의 작품을 발견할 수 있는 플랫폼입니다. 
@@ -25,26 +28,9 @@ cat > README.md << 'EOL'
 - React Router
 - Lucide Icons
 
-### Backend (예정)
-- Node.js
-- Express
+### Backend 
 - Firebase
 
-## 🚀 시작하기
-
-\`\`\`bash
-# 저장소 클론
-git clone https://github.com/yourusername/portfolio-hub.git
-
-# 디렉토리 이동
-cd portfolio-hub
-
-# 의존성 설치
-npm install
-
-# 개발 서버 실행
-npm start
-\`\`\`
 
 ## 📱 스크린샷
 
