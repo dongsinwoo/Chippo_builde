@@ -1,14 +1,96 @@
 import React, { useState, useEffect } from 'react';
 import { Search, BookOpen, Users, Briefcase, Eye, ChevronRight, ArrowRight, Lightbulb, Globe, Award,ThumbsUp, MessageCircle,} from "lucide-react";
-//
-import HeadNav from '../component/HeadNav';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { db } from '../firebase';
+import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 
 function Home() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [randomPortfolios, setRandomPortfolios] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const categoryMapping = {
+    "디자인": "design",
+    "개발": "development",
+    "마케팅": "marketing",
+    "비즈니스": "business",
+    "예술": "art",
+    "공학": "engineering",
+    "과학": "science",
+    "기타": "other"
+  };
+  
+  const categoryColors = {
+    "전체": "bg-gray-100 text-gray-800",
+    "디자인": "bg-pink-100 text-pink-800",
+    "개발": "bg-blue-100 text-blue-800",
+    "마케팅": "bg-green-100 text-green-800",
+    "비즈니스": "bg-purple-100 text-purple-800",
+    "예술": "bg-yellow-100 text-yellow-800",
+    "공학": "bg-orange-100 text-orange-800",
+    "과학": "bg-cyan-100 text-cyan-800",
+    "기타": "bg-gray-100 text-gray-800"
+  };
+  
+  const handlePortfolioAuthClick = () => {
+    if (!user) {
+      navigate('/login');
+    } else {
+      navigate('/portfolio');
+    }
+  };
+  const handleUploadClick = () => {
+    if (!user) {
+      navigate('/login');
+    } else {
+      navigate('/upload');
+    }
+  };
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    if (searchTerm.trim()) {
+      navigate(`/portfolio?search=${encodeURIComponent(searchTerm.trim())}`);
+    }
+  };
+
+  useEffect(() => {
+    const fetchRandomPortfolios = async () => {
+      try {
+        const q = query(collection(db, 'portfolios'), orderBy('createdAt', 'desc'));
+        const querySnapshot = await getDocs(q);
+        const portfolios = querySnapshot.docs
+          .map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }))
+          .filter(portfolio => portfolio.images && portfolio.images.length > 0);
+
+        const shuffled = portfolios.sort(() => 0.5 - Math.random());
+        setRandomPortfolios(shuffled.slice(0, 6));
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching portfolios:', error);
+        setLoading(false);
+      }
+    };
+
+    fetchRandomPortfolios();
+  }, []);
+
+  const handlePortfolioClick = (portfolioId) => {
+    if (!user) {
+      navigate('/login');
+    } else {
+      navigate(`/portfolio?selected=${portfolioId}`);
+    }
+  };
 
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-b from-gray-50 to-white text-gray-900">
-      <HeadNav />
-
       <main className="flex-1">
         <section className="w-full py-12 md:py-24 lg:py-32 xl:py-64 bg-gradient-to-r from-purple-50 via-white to-blue-50">
           <div className="container px-4 md:px-6 mx-auto">
@@ -22,9 +104,18 @@ function Home() {
                 </p>
               </div>
               <div className="w-full max-w-sm space-y-2">
-                <form className="flex space-x-2">
-                  <input className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-md text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent" placeholder="포트폴리오 검색..." type="text" />
-                  <button type="submit" className="px-3 py-2 bg-[#343434] text-white rounded-md hover:bg-[#4a4a4a] focus:outline-none focus:ring-2 focus:ring-[#343434] focus:ring-offset-2">
+                <form className="flex space-x-2" onSubmit={handleSearch}>
+                  <input 
+                    className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-md text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent" 
+                    placeholder="포트폴리오 검색..." 
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                  <button 
+                    type="submit" 
+                    className="px-3 py-2 bg-[#343434] text-white rounded-md hover:bg-[#4a4a4a] focus:outline-none focus:ring-2 focus:ring-[#343434] focus:ring-offset-2"
+                  >
                     <Search className="h-4 w-4" />
                     <span className="sr-only">검색</span>
                   </button>
@@ -39,7 +130,7 @@ function Home() {
             <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl text-center mb-12 bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-blue-500">주요 서비스</h2>
             <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
               {[
-                { icon: Users, title: "네트워킹", description: "다른 학생들과 연결하고 협업 기회를 찾아보세요." },
+                { icon: Users, title: "네트워킹", description: "다른 학생들과 ��결하고 협업 기회를 찾아보세요." },
                 { icon: BookOpen, title: "학습", description: "다양한 포트폴리오를 통해 새로운 아이디어와 기술을 배우세요." },
                 { icon: Briefcase, title: "취업 기회", description: "기업들과 연결되어 인턴십이나 취업 기회를 잡으세요." },
                 { icon: Lightbulb, title: "아이디어 공유", description: "창의적인 아이디어를 공유하고 피드백을 받아보세요." },
@@ -62,53 +153,59 @@ function Home() {
 
         <section className="w-full py-12 md:py-24 lg:py-32 bg-gray-100">
           <div className="container px-4 md:px-6 mx-auto">
-            <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl text-center mb-12 bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-blue-500">최근 포트폴리오</h2>
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {[1, 2, 3, 4, 5, 6].map((i) => (
-                <div key={i} className="bg-white rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                  <div className="relative aspect-video overflow-hidden">
-                    <img
-                      src={`https://picsum.photos/400/225?random=${i}`}
-                      alt={`Portfolio preview ${i}`}
-                      className="object-cover w-full h-full transition-transform duration-300 transform hover:scale-110"
+            <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl text-center mb-12 bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-blue-500">
+              다양한 포트폴리오를 만나보세요.
+            </h2>
+            {loading ? (
+              <div className="text-center py-10">
+                <p>로딩 중...</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                {randomPortfolios.map((portfolio) => (
+                  <div
+                    key={portfolio.id}
+                    onClick={() => handlePortfolioClick(portfolio.id)}
+                    className="bg-white overflow-hidden shadow-sm rounded-lg cursor-pointer hover:shadow-lg transition-shadow duration-200"
+                  >
+                    <img 
+                      className="h-48 w-full object-cover" 
+                      src={portfolio.images?.[0] || 'https://via.placeholder.com/300x200'} 
+                      alt={portfolio.title} 
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300 flex items-end">
-                      <p className="text-white p-4 font-semibold">자세히 보기</p>
-                    </div>
-                  </div>
-                  <div className="p-4">
-                    <h3 className="text-lg font-bold mb-2 hover:text-purple-600 transition-colors duration-300">포트폴리오 제목 {i}</h3>
-                    <p className="text-sm text-gray-500 mb-2">작성자: 학생 {i}</p>
-                    <div className="flex justify-between items-center">
-                      <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs font-semibold rounded-full hover:bg-purple-200 transition-colors duration-300">디자인</span>
-                      <div className="flex items-center text-sm text-gray-500">
-                      <div className="flex space-x-4">
-                        {/* 조회수 */}
-                        <div className="flex items-center space-x-1">
-                          <Eye className="h-4 w-4" />
-                          <span>{Math.floor(Math.random() * 1000) + 100}</span>
+                    <div className="p-4">
+                      <h3 className="text-lg font-medium text-gray-900">{portfolio.title}</h3>
+                      <p className="mt-1 text-sm text-gray-500">{portfolio.authorName}</p>
+                      <div className="mt-4 flex justify-between items-center">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          categoryColors[Object.entries(categoryMapping).find(([k, v]) => v === portfolio.category)?.[0] || 'bg-gray-100 text-gray-800']
+                        }`}>
+                          {Object.entries(categoryMapping).find(([k, v]) => v === portfolio.category)?.[0] || portfolio.category}
+                        </span>
+                        <div className="flex items-center space-x-2 text-sm text-gray-500">
+                          <span className="flex items-center">
+                            <Eye className="h-4 w-4 mr-1" />
+                            {portfolio.views || 0}
+                          </span>
+                          <span className="flex items-center">
+                            <ThumbsUp className="h-4 w-4 mr-1" />
+                            {portfolio.likes || 0}
+                          </span>
+                          <span className="flex items-center">
+                            <MessageCircle className="h-4 w-4 mr-1" />
+                            {portfolio.commentsCount || 0}
+                          </span>
                         </div>
-              
-                        {/* 좋아요 */}
-                        <div className="flex items-center space-x-1">
-                          <ThumbsUp className="h-4 w-4" />
-                          <span>{Math.floor(Math.random() * 100) + 10}</span>
-                        </div>
-                        
-                        {/* 댓글 */}
-                        <div className="flex items-center space-x-1">
-                          <MessageCircle className="h-4 w-4" />
-                          <span>{Math.floor(Math.random() * 50) + 5}</span>
-                        </div>
-                      </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
             <div className="mt-12 text-center">
-              <button className="px-6 py-3 bg-[#343434] text-white rounded-md hover:bg-[#4a4a4a] focus:outline-none focus:ring-2 focus:ring-[#343434] focus:ring-offset-2 transition-all duration-300 transform hover:scale-105">
+              <button 
+                onClick={handlePortfolioAuthClick}
+                className="px-6 py-3 bg-[#343434] text-white rounded-md hover:bg-[#4a4a4a] focus:outline-none focus:ring-2 focus:ring-[#343434] focus:ring-offset-2 transition-all duration-300 transform hover:scale-105">
                 더 많은 포트폴리오 보기
                 <ChevronRight className="ml-2 h-4 w-4 inline" />
               </button>
@@ -148,7 +245,9 @@ function Home() {
                   여러분의 재능을 세상에 보여줄 준비가 되셨나요? 지금 바로 포트폴리오를 업로드하고 새로운 기회를 만나보세요.
                 </p>
               </div>
-              <button className="h-11 px-8 bg-[#343434] text-white rounded-md hover:bg-[#4a4a4a] focus:outline-none focus:ring-2 focus:ring-[#343434] focus:ring-offset-2 transition-all duration-300 transform hover:scale-105">
+              <button 
+                onClick={handleUploadClick}
+                className="h-11 px-8 bg-[#343434] text-white rounded-md hover:bg-[#4a4a4a] focus:outline-none focus:ring-2 focus:ring-[#343434] focus:ring-offset-2 transition-all duration-300 transform hover:scale-105">
                 포트폴리오 업로드
                 <ArrowRight className="ml-2 h-4 w-4 inline" />
               </button>
@@ -156,22 +255,6 @@ function Home() {
           </div>
         </section>
       </main>
-
-      <footer className="w-full py-6 bg-gray-100">
-        <div className="container px-4 md:px-6 mx-auto">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <p className="text-xs text-gray-500">© 2024 학생포트폴리오. 모든 권리 보유.</p>
-            <nav  className="sm:ml-auto flex gap-4 sm:gap-6">
-              <a href="/terms" className="text-xs hover:underline underline-offset-4 text-gray-500 hover:text-gray-900">
-                이용약관
-              </a>
-              <a href="/privacy" className="text-xs hover:underline underline-offset-4 text-gray-500 hover:text-gray-900">
-                개인정보처리방침
-              </a>
-            </nav>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

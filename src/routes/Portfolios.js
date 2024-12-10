@@ -1,65 +1,177 @@
-import React, { useState } from 'react';
-import { Eye, ThumbsUp, MessageCircle, Search, Menu } from 'lucide-react';
-import chippoLogo from '../assets/chippo_logo.png';  
-import HeadNav from '../component/HeadNav';
+import React, { useState, useEffect } from 'react';
+import { Eye, ThumbsUp, MessageCircle, Search} from 'lucide-react';
+import PortfolioDetailPage from '../component/PortfolioDetail';
+import { db } from '../firebase';
+import { collection, query, orderBy,  where, onSnapshot } from 'firebase/firestore';
+import { useNavigate } from 'react-router-dom';
+
 
 const categories = [
   "전체", "디자인", "개발", "마케팅", "비즈니스", "예술", "공학", "과학", "기타"
 ];
 
-const portfolios = [
-  { id: 1, title: "모바일 앱 UI/UX 디자인", author: "김디자인", category: "디자인", views: 1500, likes: 120, comments: 25, image: "https://picsum.photos/id/1/300/200", createdAt: "2023-06-01" },
-  { id: 2, title: "React Native 쇼핑몰 앱", author: "이개발", category: "개발", views: 1200, likes: 95, comments: 18, image: "https://picsum.photos/id/2/300/200", createdAt: "2023-06-02" },
-  { id: 3, title: "브랜드 아이덴티티 디자인", author: "박마케팅", category: "마케팅", views: 1000, likes: 88, comments: 15, image: "https://picsum.photos/id/3/300/200", createdAt: "2023-06-03" },
-  { id: 4, title: "AI 기반 데이터 분석 프로젝트", author: "최과학", category: "과학", views: 950, likes: 76, comments: 22, image: "https://picsum.photos/id/4/300/200", createdAt: "2023-06-04" },
-  { id: 5, title: "지속 가능한 건축 디자인", author: "정공학", category: "공학", views: 850, likes: 67, comments: 13, image: "https://picsum.photos/id/5/300/200", createdAt: "2023-06-05" },
-  { id: 6, title: "현대 미술 전시회 기획", author: "한예술", category: "예술", views: 800, likes: 72, comments: 20, image: "https://picsum.photos/id/6/300/200", createdAt: "2023-06-06" },
-  { id: 7, title: "스타트업 비즈니스 모델", author: "유비즈니스", category: "비즈니스", views: 750, likes: 58, comments: 17, image: "https://picsum.photos/id/7/300/200", createdAt: "2023-06-07" },
-  { id: 8, title: "오픈소스 라이브러리 개발", author: "송개발", category: "개발", views: 700, likes: 85, comments: 30, image: "https://picsum.photos/id/8/300/200", createdAt: "2023-06-08" },
-];
+const categoryMapping = {
+  "전체": "all",
+  "디자인": "design",
+  "개발": "development",
+  "마케팅": "marketing",
+  "비즈니스": "business",
+  "예술": "art",
+  "공학": "engineering",
+  "과학": "science",
+  "기타": "other"
+};
+
+// 카테고리별 색상 매핑 추가
+const categoryColors = {
+  "전체": "bg-gray-100 text-gray-800",
+  "디자인": "bg-pink-100 text-pink-800",
+  "개발": "bg-blue-100 text-blue-800",
+  "마케팅": "bg-green-100 text-green-800",
+  "비즈니스": "bg-purple-100 text-purple-800",
+  "예술": "bg-yellow-100 text-yellow-800",
+  "공학": "bg-orange-100 text-orange-800",
+  "과학": "bg-cyan-100 text-cyan-800",
+  "기타": "bg-gray-100 text-gray-800"
+};
 
 function MainPortfolioPage() {
+  const navigate = useNavigate();
+  const [portfolios, setPortfolios] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [selectedCategory, setSelectedCategory] = useState("전체");
+  const [selectedPortfolio, setSelectedPortfolio] = useState(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filteredPortfolios, setFilteredPortfolios] = useState([]);
 
-  const filteredPortfolios = selectedCategory === "전체"
-    ? portfolios
-    : portfolios.filter(portfolio => portfolio.category === selectedCategory);
+  useEffect(() => {
+    let unsubscribe;
 
-  const popularPortfolios = [...filteredPortfolios].sort((a, b) => b.views - a.views).slice(0, 3);
-  const recentPortfolios = [...filteredPortfolios].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const setupRealtimeUpdates = () => {
+      let q;
+      
+      if (selectedCategory === "전체") {
+        q = query(collection(db, 'portfolios'), orderBy('createdAt', 'desc'));
+      } else {
+        q = query(
+          collection(db, 'portfolios'),
+          where('category', '==', categoryMapping[selectedCategory])
+        );
+      }
+
+      unsubscribe = onSnapshot(q, (snapshot) => {
+        const portfolioList = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          createdAt: doc.data().createdAt?.toDate().toISOString() || new Date().toISOString(),
+          updatedAt: doc.data().updatedAt?.toDate().toISOString() || new Date().toISOString()
+        }));
+
+        if (selectedCategory !== "전체") {
+          portfolioList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        }
+
+        setPortfolios(portfolioList);
+        setError('');
+        setLoading(false);
+      }, (error) => {
+        console.error('Error fetching portfolios:', error);
+        setError('포트폴리오를 불러오는 중 오류가 발생했습니다.');
+        setLoading(false);
+      });
+    };
+
+    setupRealtimeUpdates();
+
+    // Clean up subscription
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [selectedCategory]);
+
+  useEffect(() => {
+    // 검색어로 포트폴리오 필터링
+    const filterPortfolios = () => {
+      const searchTermLower = searchTerm.toLowerCase().trim();
+      const filtered = portfolios.filter(portfolio => {
+        const titleMatch = portfolio.title?.toLowerCase().includes(searchTermLower);
+        const authorMatch = portfolio.authorName?.toLowerCase().includes(searchTermLower);
+        return titleMatch || authorMatch;
+      });
+      setFilteredPortfolios(filtered);
+    };
+
+    filterPortfolios();
+  }, [searchTerm, portfolios]);
+
+  const popularPortfolios = [...portfolios].sort((a, b) => b.views - a.views).slice(0, 3);
+  const recentPortfolios = [...portfolios];
+
+  const handlePortfolioClick = (portfolioId) => {
+    navigate(`/portfolio/${portfolioId}`);
+  };
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const searchParam = params.get('search');
+    if (searchParam) {
+      setSearchTerm(searchParam);
+    }
+  }, []);
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    const params = new URLSearchParams(window.location.search);
+    if (searchTerm.trim()) {
+      params.set('search', searchTerm.trim());
+    } else {
+      params.delete('search');
+    }
+    window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-xl text-gray-600">로딩 중...</div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col">
-      <HeadNav />
-
-      <main className="flex-grow">
-        <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-          {/* 검색 바 */}
-          <div className="px-4 py-6 sm:px-0">
-            <div className="flex items-center bg-white rounded-lg shadow-sm">
+    <div className="min-h-screen bg-gray-50">
+      <main className="container mx-auto px-4 py-8">
+        {/* 검색 및 카테고리 필터 */}
+        <div className="mb-8">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+            {/* 검색바 */}
+            <div className="relative w-full md:w-96">
               <input
                 type="text"
-                placeholder="포트폴리오 검색..."
-                className="flex-grow px-4 py-2 rounded-l-lg focus:outline-none"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="제목 또는 작성자 이름으로 검색"
+                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
               />
-              <button className="bg-indigo-600 text-white px-4 py-2 rounded-r-lg hover:bg-indigo-700 focus:outline-none">
-                <Search className="h-5 w-5" />
-              </button>
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search className="h-5 w-5 text-gray-400" />
+              </div>
             </div>
-          </div>
 
-          {/* 카테고리 네비게이션 */}
-          <div className="px-4 py-6 sm:px-0">
-            <div className="flex flex-wrap gap-2 mb-6">
+            {/* 카테고리 필터 */}
+            <div className="flex flex-wrap gap-2">
               {categories.map((category) => (
                 <button
                   key={category}
                   onClick={() => setSelectedCategory(category)}
-                  className={`px-4 py-2 rounded-full text-sm font-medium ${
+                  className={`px-4 py-2 rounded-md ${
                     selectedCategory === category
                       ? 'bg-indigo-600 text-white'
-                      : 'bg-white text-gray-800 hover:bg-gray-100'
+                      : `hover:opacity-80`
                   }`}
                 >
                   {category}
@@ -67,99 +179,96 @@ function MainPortfolioPage() {
               ))}
             </div>
           </div>
+        </div>
 
-          {/* 인기 포트폴리오 섹션 */}
-          <section className="px-4 py-6 sm:px-0">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">인기 포트폴리오</h2>
-            {popularPortfolios.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {popularPortfolios.map((portfolio) => (
-                  <div key={portfolio.id} className="bg-white overflow-hidden shadow-sm rounded-lg">
-                    <img className="h-48 w-full object-cover" src={portfolio.image} alt={portfolio.title} />
-                    <div className="p-4">
-                      <h3 className="text-lg font-medium text-gray-900">{portfolio.title}</h3>
-                      <p className="mt-1 text-sm text-gray-500">{portfolio.author}</p>
-                      <div className="mt-4 flex justify-between items-center">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                          {portfolio.category}
+        {selectedPortfolio && (
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50">
+            <div className="min-h-screen px-4 text-center">
+              <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+                <div className="absolute inset-0 bg-black opacity-50"></div>
+              </div>
+
+              <span className="inline-block h-screen align-middle" aria-hidden="true">&#8203;</span>
+
+              <div className="inline-block w-full max-w-4xl p-6 my-8 text-left align-middle transition-all transform bg-white shadow-xl rounded-lg relative">
+                <button
+                  onClick={() => setSelectedPortfolio(null)}
+                  className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+                <div className="max-h-[90vh] overflow-y-auto">
+                  <PortfolioDetailPage portfolio={selectedPortfolio} />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <div className="px-4 py-6 sm:px-0">
+            <div className="text-red-500 text-center">{error}</div>
+          </div>
+        )}
+
+        {/* 포트폴리오 그리드 */}
+        <div className="px-4 py-6 sm:px-0">
+          {filteredPortfolios.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="text-gray-500 text-lg">
+                {searchTerm 
+                  ? '검색 결과가 없습니다.' 
+                  : '등록된 포트폴리오가 없습니다.'}
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredPortfolios.map((portfolio) => (
+                <div
+                  key={portfolio.id}
+                  onClick={() => handlePortfolioClick(portfolio.id)}
+                  className="bg-white rounded-lg shadow-md overflow-hidden cursor-pointer transform transition-transform duration-200 hover:scale-[1.02]"
+                >
+                  <div className="relative pb-[60%]">
+                    <img
+                      src={portfolio.thumbnailUrl || portfolio.images?.[0]}
+                      alt={portfolio.title}
+                      className="absolute inset-0 w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="p-4">
+                    <h3 className="text-lg font-medium text-gray-900">{portfolio.title}</h3>
+                    <p className="mt-1 text-sm text-gray-500">{portfolio.authorName}</p>
+                    <div className="mt-4 flex justify-between items-center">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        categoryColors[Object.entries(categoryMapping).find(([k, v]) => v === portfolio.category)?.[0] || 'bg-gray-100 text-gray-800']
+                      }`}>
+                        {Object.entries(categoryMapping).find(([k, v]) => v === portfolio.category)?.[0] || portfolio.category}
+                      </span>
+                      <div className="flex items-center space-x-2 text-sm text-gray-500">
+                        <span className="flex items-center">
+                          <Eye className="h-4 w-4 mr-1" />
+                          {portfolio.views}
                         </span>
-                        <div className="flex items-center space-x-2 text-sm text-gray-500">
-                          <span className="flex items-center">
-                            <Eye className="h-4 w-4 mr-1" />
-                            {portfolio.views}
-                          </span>
-                          <span className="flex items-center">
-                            <ThumbsUp className="h-4 w-4 mr-1" />
-                            {portfolio.likes}
-                          </span>
-                          <span className="flex items-center">
-                            <MessageCircle className="h-4 w-4 mr-1" />
-                            {portfolio.comments}
-                          </span>
-                        </div>
+                        <span className="flex items-center">
+                          <ThumbsUp className="h-4 w-4 mr-1" />
+                          {portfolio.likes}
+                        </span>
+                        <span className="flex items-center">
+                          <MessageCircle className="h-4 w-4 mr-1" />
+                          {portfolio.commentsCount}
+                        </span>
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-gray-500 text-center">현재 표시할 인기 포트폴리오가 없습니다.</p>
-            )}
-          </section>
-
-          {/* 최근 포트폴리오 섹션 */}
-          <section className="px-4 py-6 sm:px-0">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">최근 포트폴리오</h2>
-            {recentPortfolios.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {recentPortfolios.map((portfolio) => (
-                  <div key={portfolio.id} className="bg-white overflow-hidden shadow-sm rounded-lg">
-                    <img className="h-48 w-full object-cover" src={portfolio.image} alt={portfolio.title} />
-                    <div className="p-4">
-                      <h3 className="text-lg font-medium text-gray-900">{portfolio.title}</h3>
-                      <p className="mt-1 text-sm text-gray-500">{portfolio.author}</p>
-                      <div className="mt-4 flex justify-between items-center">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                          {portfolio.category}
-                        </span>
-                        <div className="flex items-center space-x-2 text-sm text-gray-500">
-                          <span className="flex items-center">
-                            <Eye className="h-4 w-4 mr-1" />
-                            {portfolio.views}
-                          </span>
-                          <span className="flex items-center">
-                            <ThumbsUp className="h-4 w-4 mr-1" />
-                            {portfolio.likes}
-                          </span>
-                          <span className="flex items-center">
-                            <MessageCircle className="h-4 w-4 mr-1" />
-                            {portfolio.comments}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-gray-500 text-center">현재 표시할 최근 포트폴리오가 없습니다.</p>
-            )}
-          </section>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </main>
-
-      <footer className="bg-white shadow-md mt-auto">
-        <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col md:flex-row justify-between items-center">
-            <p className="text-sm text-gray-500">© 2023 포트폴리오 갤러리. 모든 권리 보유.</p>
-            <nav className="flex gap-4 mt-4 md:mt-0">
-              <a href="#" className="text-sm text-gray-500 hover:text-gray-900">이용약관</a>
-              <a href="#" className="text-sm text-gray-500 hover:text-gray-900">개인정보처리방침</a>
-              <a href="#" className="text-sm text-gray-500 hover:text-gray-900">문의하기</a>
-            </nav>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

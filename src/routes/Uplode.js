@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
 import { ArrowLeft } from 'lucide-react';  // lucide-react에서 아이콘 import
 import { useNavigate } from 'react-router-dom';  // react-router-dom의 네비게이션 훅
+import { db, storage } from '../firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { useAuth } from '../contexts/AuthContext';
 
 function Upload() {
   const navigate = useNavigate();
@@ -9,6 +13,10 @@ function Upload() {
   const [category, setCategory] = useState('');
   const [tags, setTags] = useState([]);
   const [files, setFiles] = useState([]);
+  const { user } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [newTag, setNewTag] = useState('');
 
   const handleFileChange = (e) => {
     setFiles([...e.target.files]);
@@ -18,21 +26,71 @@ function Upload() {
     setFiles(files.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Here you would typically send the data to your backend
-    console.log({ title, description, category, tags, files });
-    // Reset form after submission
-    setTitle('');
-    setDescription('');
-    setCategory('');
-    setTags([]);
-    setFiles([]);
+    if (!user) return;
+    
+    if (files.length === 0) {
+      setError('최소 1개 이상의 이미지를 업로드해야 합니다.');
+      return;
+    }
+    
+    try {
+      setIsLoading(true);
+      const imageUrls = [];
+
+      // 이미지 업로드
+      for (const image of files) {
+        const storageRef = ref(storage, `portfolios/${user.uid}/${Date.now()}_${image.name}`);
+        await uploadBytes(storageRef, image);
+        const url = await getDownloadURL(storageRef);
+        imageUrls.push(url);
+      }
+
+      // Firestore에 포트폴리오 데이터 저장
+      const portfolioData = {
+        title,
+        description,
+        category,
+        tags,
+        images: imageUrls,
+        authorId: user.uid,
+        authorName: user.displayName,
+        authorImage: user.photoURL,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        views: 0,
+        likes: 0,
+        commentsCount: 0
+      };
+
+      const docRef = await addDoc(collection(db, 'portfolios'), portfolioData);
+      
+      // 성공 처리 (예: 페이지 이동)
+      navigate('/portfolio');
+    } catch (error) {
+      console.error('Upload error:', error);
+      setError('포트폴리오 업로드 중 오류가 발생했습니다.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleTagKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const tagToAdd = newTag.trim();
+      if (tagToAdd && !tags.includes(tagToAdd)) {
+        setTags([...tags, tagToAdd]);
+        setNewTag('');
+      }
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-3xl mx-auto bg-white rounded-lg shadow-md p-8">
+    <>
+      <div className="min-h-screen bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-3xl mx-auto bg-white rounded-lg shadow-md p-8">
         <h1 className="text-3xl font-bold text-center mb-8">포트폴리오 업로드</h1>
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
@@ -51,7 +109,7 @@ function Upload() {
 
           <div>
             <label htmlFor="description" className="block text-sm font-medium text-gray-700">
-              설명
+              프로젝트 설명
             </label>
             <textarea
               id="description"
@@ -87,20 +145,46 @@ function Upload() {
           </div>
 
           <div>
-            <label htmlFor="tags" className="block text-sm font-medium text-gray-700">
-              태그 (쉼표로 구분)
-            </label>
-            <input
-              type="text"
-              id="tags"
-              value={tags.join(', ')}
-              onChange={(e) => {
-                const inputTags = e.target.value.split(',').map(tag => tag.trim()).filter(tag => tag !== '');
-                setTags(inputTags);
-              }}
-              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-              placeholder="태그1, 태그2, 태그3"
-            />
+            <label className="block text-sm font-medium text-gray-700">기술 태그</label>
+            <div className="flex gap-2 mb-2">
+              <input
+                type="text"
+                value={newTag}
+                onChange={(e) => setNewTag(e.target.value)}
+                onKeyDown={handleTagKeyDown}
+                className="flex-grow rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 px-2 py-1 border border-gray-300"
+                placeholder="태그 입력 후 엔터"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (newTag.trim() && !tags.includes(newTag.trim())) {
+                    setTags([...tags, newTag.trim()]);
+                    setNewTag('');
+                  }
+                }}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+              >
+                추가
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {tags.map((tag, index) => (
+                <span
+                  key={index}
+                  className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-indigo-100 text-indigo-800"
+                >
+                  {tag}
+                  <button
+                    type="button"
+                    onClick={() => setTags(tags.filter((_, i) => i !== index))}
+                    className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full text-indigo-400 hover:bg-indigo-200"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
           </div>
 
           <div>
@@ -169,14 +253,21 @@ function Upload() {
             </button>
             <button
               type="submit"
-              className="inline-flex items-center px-4 py-2 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              disabled={isLoading}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
             >
-              업로드
+              {isLoading ? '업로드 중...' : '업로드'}
             </button>
           </div>
         </form>
       </div>
-    </div>
+      {error && (
+        <div className="mb-4 text-red-500 text-center">
+          {error}
+        </div>
+        )}
+      </div>
+    </>
   );
 }
 
