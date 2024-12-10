@@ -77,7 +77,7 @@ function MainPortfolioPage() {
 
           // 이미지 프리로딩 함수
           const preloadImage = (url) => {
-            return new Promise((resolve, reject) => {
+            return new Promise((resolve) => {
               if (!url) {
                 resolve(); // URL이 없는 경우 바로 resolve
                 return;
@@ -90,7 +90,7 @@ function MainPortfolioPage() {
           };
 
           // 모든 포트폴리오의 이미지와 썸네일 프리로딩
-          const imagePromises = portfolioList.map(portfolio => {
+          const imagePromises = portfolioList.flatMap(portfolio => {
             const promises = [];
             if (portfolio.images?.[0]) {
               promises.push(preloadImage(portfolio.images[0]));
@@ -98,7 +98,7 @@ function MainPortfolioPage() {
             if (portfolio.thumbnailUrl) {
               promises.push(preloadImage(portfolio.thumbnailUrl));
             }
-            return Promise.all(promises);
+            return promises;
           });
 
           // 데이터 설정 및 이미지 로딩 완료 대기
